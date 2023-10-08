@@ -1,98 +1,86 @@
-import axios from "axios";
 
-axios.defaults.headers.common["x-api-key"] = "live_Sqoyk3jiZtbn586tdur5xMg5WUjuyz2fJe4ujNr0gNf3zLt7osZHAflT7fotFRWf";
+import 'slim-select/dist/slimselect.css';
+import { fetchBreeds, fetchCatByBreed } from './cat-api.js';
+import { Loading } from 'notiflix/build/notiflix-loading-aio';
+import { Notify } from 'notiflix/build/notiflix-notify-aio';
 
+const refs = {
+  select: document.querySelector('.breed-select'),
+  loader: document.querySelector('.loader'),
+  err: document.querySelector('.error'),
+  catCard: document.querySelector('.cat-info'),
+};
 
-// Функція для отримання та відображення списку порід
-function fetchBreeds() {
-  axios.get("https://api.thecatapi.com/v1/breeds")
-    .then((response) => {
-      const breeds = response.data;
-      const breedSelect = document.querySelector(".breed-select");
-      breedSelect.innerHTML = breeds.map(breed => `<option value="${breed.id}">${breed.name}</option>`).join('');
-      console.log(breeds)
-    })
-    .catch((error) => {
-      showError("Помилка при завантаженні порід");
-    });
-}
-document.addEventListener("DOMContentLoaded", () => {
-  fetchBreeds();
+refs.loader.style.display = 'none';
+refs.err.style.display = 'none';
+refs.select.style.display = 'none';
+refs.catCard.style.display = 'none';
+
+Loading.dots({
+  svgColor: '#5897fb',
+  svgSize: '130px',
+  messageFontSize: '30px',
 });
 
-const breedSelect = document.querySelector(".breed-select");
-breedSelect.addEventListener("change", () => {
-  const selectedBreedId = breedSelect.value;
-  if (selectedBreedId) {
-    showLoader();
-    fetchCatByBreed(selectedBreedId);
-  } else {
-    hideCatInfo();
-  }
+fetchBreeds()
+  .then(data => {
+    refs.select.style.display = 'flex';
+    refs.loader.style.display = 'none';
+
+    createMarkupOptins(data);
+    new SlimSelect({
+      select: refs.select,
+    });
+  })
+  .catch(err => {
+    Notify.failure(refs.err.textContent);
+  })
+  .finally(result => Loading.remove());
+
+function createMarkupOptins(arr) {
+  return arr
+    .map(({ id, name }) => {
+      console.log({ id, name });
+
+      const option = `<option value=${id}>${name}</option>`;
+      refs.select.insertAdjacentHTML('beforeend', option);
+    })
+    .join('');
+}
+
+refs.select.addEventListener('change', e => {
+  const id = e.target.value;
+
+  Loading.dots({
+    svgColor: '#5897fb',
+    svgSize: '130px',
+    messageFontSize: '30px',
+  });
+
+  fetchCatByBreed(id)
+    .then(catInfo => {
+      refs.catCard.style.display = 'flex';
+      createMarkupCards(catInfo);
+    })
+    .catch(err => {
+      Notify.failure(refs.err.textContent);
+    })
+    .finally(result => Loading.remove());
 });
 
-// Функція для відображення завантажувача
-function showLoader() {
-  const loader = document.querySelector(".loader");
-  loader.style.display = "block";
-}
+function createMarkupCards(data) {
+  const {
+    breeds: [{ name, description, temperament }],
+    url,
+  } = data;
 
-// Функція для приховування інформації про кота
-function hideCatInfo() {
-  const catInfo = document.querySelector(".cat-info");
-  catInfo.style.display = "none";
-}
+  const card = ` 
+      <img class="cat-img" src="${url}" alt="${name}"  >
+       <div class="cat-right">
+      <h1 class="name">${name}</h1>
+      <p class="description">${description}</p>
+      <p class="temperament"><span class="temperament-span">Temperament:</span> ${temperament}</p>    
+      </div>`;
 
-// Функція для відображення інформації про кота
-function showCatInfo(catData) {
-  const catInfo = document.querySelector(".cat-info");
-   const catImage = document.createElement("img");
-  const catName = document.createElement("h2");
-  const catDescription = document.createElement("p");
-  const catTemperament = document.createElement("p");
-
-  // Заповнення створених елементів даними про кота
-  catImage.src = catData.url;
-  catImage.alt = "Зображення кота";
- catName.textContent = catData.name;
-  catDescription.textContent = `Опис: ${catData.description}`;
-  catTemperament.textContent = `Темперамент: ${catData.temperament}`;
-
-  // Очищення вмісту блоку .cat-info перед вставкою нової інформації
-  catInfo.innerHTML = "";
-
-  // Вставка створених елементів в блок .cat-info
-  catInfo.appendChild(catImage);
-  catInfo.appendChild(catName);
-  catInfo.appendChild(catDescription);
-  catInfo.appendChild(catTemperament);
-
-  catInfo.style.display = "block";
-}
-
-function fetchCatByBreed(breedId) {
-  axios.get(`https://api.thecatapi.com/v1/images/search?breed_ids=${breedId}`)
-    .then((response) => {
-      const catData = response.data[0];
-      showCatInfo(catData);
-    })
-    .catch((error) => {
-      showError("Помилка при отриманні інформації про кота");
-    })
-    .finally(() => {
-      hideLoader();
-    });
-}
-
-// Функція для приховування завантажувача
-function hideLoader() {
-  const loader = document.querySelector(".loader");
-  loader.style.display = "none";
-}
-
-// Функція для відображення помилки
-function showError(message) {
-  const error = document.querySelector(".error");
-  error.textContent = message;
-  error.style.display = "block";
+  refs.catCard.innerHTML = card;
 }
